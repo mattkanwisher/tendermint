@@ -506,7 +506,7 @@ func (voteSet *FnVoteSet) IsMaj23(currentValidatorSet *types.ValidatorSet) bool 
 }
 
 // Should be the first function to be invoked on vote set received from Peer
-func (voteSet *FnVoteSet) IsValid(chainID string, validityPeriod time.Duration, currentValidatorSet *types.ValidatorSet, registry FnRegistry) bool {
+func (voteSet *FnVoteSet) IsValid(chainID string, maxContextSize int, validityPeriod time.Duration, currentValidatorSet *types.ValidatorSet, registry FnRegistry) bool {
 	isValid := true
 	numValidators := voteSet.VoteBitArray.Size()
 
@@ -541,6 +541,11 @@ func (voteSet *FnVoteSet) IsValid(chainID string, validityPeriod time.Duration, 
 	}
 
 	if numValidators != len(voteSet.ValidatorAddresses) || numValidators != len(voteSet.ValidatorSignatures) || numValidators != currentValidatorSet.Size() {
+		isValid = false
+		return isValid
+	}
+
+	if len(voteSet.ExecutionContext) > maxContextSize {
 		isValid = false
 		return isValid
 	}

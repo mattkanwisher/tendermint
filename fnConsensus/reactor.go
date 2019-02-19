@@ -302,7 +302,7 @@ func (f *FnConsensusReactor) handleVoteSetChannelMessage(sender p2p.Peer, msgByt
 		return
 	}
 
-	if !remoteVoteSet.IsValid(f.chainID, DefaultValidityPeriod, currentState.Validators, f.fnRegistry) {
+	if !remoteVoteSet.IsValid(f.chainID, MaxContextSize, DefaultValidityPeriod, currentState.Validators, f.fnRegistry) {
 		f.Logger.Error("FnConsensusReactor: Invalid VoteSet specified, ignoring...")
 		return
 	}
@@ -430,7 +430,7 @@ func (f *FnConsensusReactor) handleVoteSetMaj23UpdateMessage(sender p2p.Peer, ms
 		return
 	}
 
-	if !remoteMaj23VoteSet.IsValid(f.chainID, DefaultValidityPeriod, currentState.Validators, f.fnRegistry) {
+	if !remoteMaj23VoteSet.IsValid(f.chainID, MaxContextSize, DefaultValidityPeriod, currentState.Validators, f.fnRegistry) {
 		f.Logger.Error("FnConsensusReactor: Invalid Maj23 voteset passed, Ignoring...")
 		return
 	}
