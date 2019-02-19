@@ -337,11 +337,12 @@ type FnVoteSet struct {
 	CreationTime        int64          `json:"creation_time"`
 	VoteBitArray        *cmn.BitArray  `json:"vote_bitarray"`
 	Payload             *FnVotePayload `json:"vote_payload"`
+	ExecutionContext    []byte         `json:"execution_context"`
 	ValidatorSignatures [][]byte       `json:"signature"`
 	ValidatorAddresses  [][]byte       `json:"validator_address"`
 }
 
-func NewVoteSet(chainID string, expiresIn time.Duration, validatorIndex int, initialPayload *FnVotePayload, privValidator types.PrivValidator, valSet *types.ValidatorSet) (*FnVoteSet, error) {
+func NewVoteSet(chainID string, expiresIn time.Duration, validatorIndex int, executionContext []byte, initialPayload *FnVotePayload, privValidator types.PrivValidator, valSet *types.ValidatorSet) (*FnVoteSet, error) {
 	voteBitArray := cmn.NewBitArray(valSet.Size())
 	signatures := make([][]byte, valSet.Size())
 	validatorAddresses := make([][]byte, valSet.Size())
@@ -372,6 +373,7 @@ func NewVoteSet(chainID string, expiresIn time.Duration, validatorIndex int, ini
 		CreationTime:        time.Now().Unix(),
 		Payload:             initialPayload,
 		VoteBitArray:        voteBitArray,
+		ExecutionContext:    executionContext,
 		ValidatorSignatures: signatures,
 		ValidatorAddresses:  validatorAddresses,
 	}
@@ -417,6 +419,10 @@ func (voteSet *FnVoteSet) CannonicalCompare(remoteVoteSet *FnVoteSet) bool {
 		return false
 	}
 
+	if bytes.Compare(voteSet.ExecutionContext, remoteVoteSet.ExecutionContext) != 0 {
+		return false
+	}
+
 	for i := 0; i < len(voteSet.ValidatorAddresses); i++ {
 		if bytes.Compare(voteSet.ValidatorAddresses[i], remoteVoteSet.ValidatorAddresses[i]) != 0 {
 			return false
@@ -432,12 +438,29 @@ func (voteSet *FnVoteSet) SignBytes(validatorIndex int) ([]byte, error) {
 		return nil, err
 	}
 
+	var seperator = []byte{17, 19, 23, 29}
+
 	prefix := []byte(fmt.Sprintf("CT:%d|CD:%s|VA:%s|PL:", voteSet.CreationTime,
 		voteSet.ChainID, voteSet.ValidatorAddresses[validatorIndex]))
 
-	signBytes := make([]byte, len(prefix)+len(payloadBytes))
-	copy(signBytes, prefix)
-	copy(signBytes[len(prefix):], payloadBytes)
+	signBytes := make([]byte, len(prefix)+len(seperator)+len(voteSet.ExecutionContext)+len(seperator)+len(payloadBytes))
+
+	numCopied := 0
+
+	copy(signBytes[numCopied:], prefix)
+	numCopied += len(prefix)
+
+	copy(signBytes[numCopied:], seperator)
+	numCopied += len(seperator)
+
+	copy(signBytes[numCopied:], voteSet.ExecutionContext)
+	numCopied += len(voteSet.ExecutionContext)
+
+	copy(signBytes[numCopied:], seperator)
+	numCopied += len(seperator)
+
+	copy(signBytes[numCopied:], payloadBytes)
+	numCopied += len(payloadBytes)
 
 	return signBytes, nil
 }

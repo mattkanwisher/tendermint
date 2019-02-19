@@ -20,10 +20,14 @@ const FnVoteSetMaj23Channel = byte(0x51)
 
 const StartingNonce int64 = 1
 
-const maxMsgSize = 500 * 1024
+// Max message size 1 MB
+const maxMsgSize = 1000 * 1024
 
 const ProgressIntervalInSeconds int64 = 60
 const DefaultValidityPeriod = 59 * time.Second
+
+// Max context size 1 KB
+const MaxContextSize = 1024
 
 type FnConsensusReactor struct {
 	p2p.BaseReactor
@@ -197,7 +201,18 @@ OUTER_LOOP:
 }
 
 func (f *FnConsensusReactor) propose(fnID string, fn Fn, currentState state.State, validatorIndex int) {
-	message, signature, err := fn.GetMessageAndSignature()
+	ctx, err := fn.PrepareContext()
+	if err != nil {
+		f.Logger.Error("FnConsensusReactor: received error while executing fn.PrepareContext", "error", err)
+		return
+	}
+
+	if len(ctx) > MaxContextSize {
+		f.Logger.Error("FnConsensusReactor: context cannot be more than", "MaxContextSize", MaxContextSize)
+		return
+	}
+
+	message, signature, err := fn.GetMessageAndSignature(safeCopyBytes(ctx))
 	if err != nil {
 		f.Logger.Error("FnConsensusReactor: received error while executing fn.GetMessageAndSignature", "fnID", fnID)
 		return
@@ -209,7 +224,7 @@ func (f *FnConsensusReactor) propose(fnID string, fn Fn, currentState state.Stat
 		return
 	}
 
-	if err = fn.MapMessage(hash, message); err != nil {
+	if err = fn.MapMessage(safeCopyBytes(ctx), safeCopyBytes(hash), safeCopyBytes(message)); err != nil {
 		f.Logger.Error("FnConsensusReactor: received error while executing fn.MapMessage", "fnID", fnID, "error", err)
 		return
 	}
@@ -231,7 +246,8 @@ func (f *FnConsensusReactor) propose(fnID string, fn Fn, currentState state.Stat
 
 	f.stateMtx.Lock()
 
-	voteSet, err := NewVoteSet(f.chainID, DefaultValidityPeriod, validatorIndex, votesetPayload, f.privValidator, currentState.Validators)
+	voteSet, err := NewVoteSet(f.chainID, DefaultValidityPeriod, validatorIndex, ctx,
+		votesetPayload, f.privValidator, currentState.Validators)
 	if err != nil {
 		f.Logger.Error("FnConsensusReactor: unable to create new voteset", "fnID", fnID, "error", err)
 		return
@@ -239,7 +255,9 @@ func (f *FnConsensusReactor) propose(fnID string, fn Fn, currentState state.Stat
 
 	// It seems we are the only validator, so return the signature and close the case.
 	if voteSet.IsMaj23(currentState.Validators) {
-		fn.SubmitMultiSignedMessage(voteSet.Payload.Response.Hash, voteSet.Payload.Response.OracleSignatures)
+		fn.SubmitMultiSignedMessage(safeCopyBytes(ctx),
+			safeCopyBytes(voteSet.Payload.Response.Hash),
+			safeCopyDoubleArray(voteSet.Payload.Response.OracleSignatures))
 		f.stateMtx.Unlock()
 		return
 	}
@@ -318,7 +336,7 @@ func (f *FnConsensusReactor) handleVoteSetChannelMessage(sender p2p.Peer, msgByt
 	currentVoteSet = f.state.CurrentVoteSets[fnID]
 
 	if areWeValidator {
-		message, signature, err := fn.GetMessageAndSignature()
+		message, signature, err := fn.GetMessageAndSignature(safeCopyBytes(currentVoteSet.ExecutionContext))
 		if err != nil {
 			f.Logger.Error("FnConsensusReactor: fn.GetMessageAndSignature returned an error, ignoring..")
 			return
@@ -330,7 +348,7 @@ func (f *FnConsensusReactor) handleVoteSetChannelMessage(sender p2p.Peer, msgByt
 			return
 		}
 
-		if err = fn.MapMessage(hash, message); err != nil {
+		if err = fn.MapMessage(safeCopyBytes(currentVoteSet.ExecutionContext), safeCopyBytes(hash), safeCopyBytes(message)); err != nil {
 			f.Logger.Error("FnConsensusReactor: received error while executing fn.MapMessage", "fnID", fnID, "error", err)
 			return
 		}
@@ -353,7 +371,9 @@ func (f *FnConsensusReactor) handleVoteSetChannelMessage(sender p2p.Peer, msgByt
 	haveWeAchievedMaj23 := currentVoteSet.IsMaj23(currentState.Validators)
 
 	if haveWeAchievedMaj23 {
-		fn.SubmitMultiSignedMessage(currentVoteSet.Payload.Response.Hash, currentVoteSet.Payload.Response.OracleSignatures)
+		fn.SubmitMultiSignedMessage(safeCopyBytes(currentVoteSet.ExecutionContext),
+			safeCopyBytes(currentVoteSet.Payload.Response.Hash),
+			safeCopyDoubleArray(currentVoteSet.Payload.Response.OracleSignatures))
 
 		f.state.PreviousMaj23VoteSets[fnID] = currentVoteSet
 		delete(f.state.CurrentVoteSets, fnID)

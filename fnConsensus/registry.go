@@ -8,9 +8,10 @@ import (
 var ErrFnIDIsTaken = errors.New("FnID is already used by another Fn Object")
 
 type Fn interface {
-	SubmitMultiSignedMessage(message []byte, signatures [][]byte)
-	GetMessageAndSignature() ([]byte, []byte, error)
-	MapMessage([]byte, []byte) error
+	SubmitMultiSignedMessage(ctx []byte, message []byte, signatures [][]byte)
+	GetMessageAndSignature(ctx []byte) ([]byte, []byte, error)
+	MapMessage(ctx []byte, key []byte, message []byte) error
+	PrepareContext() ([]byte, error)
 }
 
 type FnRegistry interface {
