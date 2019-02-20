@@ -201,9 +201,14 @@ OUTER_LOOP:
 }
 
 func (f *FnConsensusReactor) propose(fnID string, fn Fn, currentState state.State, validatorIndex int) {
-	ctx, err := fn.PrepareContext()
+	shouldExecuteFn, ctx, err := fn.PrepareContext()
 	if err != nil {
 		f.Logger.Error("FnConsensusReactor: received error while executing fn.PrepareContext", "error", err)
+		return
+	}
+
+	if !shouldExecuteFn {
+		f.Logger.Info("FnConsensusReactor: PrepareContext indicated to not execute fn", "fnID", fnID)
 		return
 	}
 

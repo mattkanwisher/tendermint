@@ -6,12 +6,13 @@ import (
 )
 
 var ErrFnIDIsTaken = errors.New("FnID is already used by another Fn Object")
+var ErrFnObjCantNil = errors.New("FnObj cant be nil")
 
 type Fn interface {
 	SubmitMultiSignedMessage(ctx []byte, message []byte, signatures [][]byte)
 	GetMessageAndSignature(ctx []byte) ([]byte, []byte, error)
 	MapMessage(ctx []byte, key []byte, message []byte) error
-	PrepareContext() ([]byte, error)
+	PrepareContext() (bool, []byte, error)
 }
 
 type FnRegistry interface {
@@ -51,6 +52,10 @@ func (f *InMemoryFnRegistry) Get(fnID string) Fn {
 }
 
 func (f *InMemoryFnRegistry) Set(fnID string, fnObj Fn) error {
+	if fnObj == nil {
+		return ErrFnObjCantNil
+	}
+
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
 
