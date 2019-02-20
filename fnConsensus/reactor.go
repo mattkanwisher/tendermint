@@ -207,13 +207,13 @@ func (f *FnConsensusReactor) propose(fnID string, fn Fn, currentState state.Stat
 		return
 	}
 
-	if !shouldExecuteFn {
-		f.Logger.Info("FnConsensusReactor: PrepareContext indicated to not execute fn", "fnID", fnID)
+	if len(ctx) > MaxContextSize {
+		f.Logger.Error("FnConsensusReactor: context cannot be more than", "MaxContextSize", MaxContextSize)
 		return
 	}
 
-	if len(ctx) > MaxContextSize {
-		f.Logger.Error("FnConsensusReactor: context cannot be more than", "MaxContextSize", MaxContextSize)
+	if !shouldExecuteFn {
+		f.Logger.Info("FnConsensusReactor: PrepareContext indicated to not execute fn", "fnID", fnID)
 		return
 	}
 
