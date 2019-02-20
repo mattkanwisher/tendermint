@@ -23,8 +23,8 @@ const StartingNonce int64 = 1
 // Max message size 1 MB
 const maxMsgSize = 1000 * 1024
 
-const ProgressIntervalInSeconds int64 = 60
-const DefaultValidityPeriod = 59 * time.Second
+const ProgressIntervalInSeconds int64 = 120
+const DefaultValidityPeriod = 119 * time.Second
 
 // Max context size 1 KB
 const MaxContextSize = 1024
