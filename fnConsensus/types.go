@@ -408,6 +408,7 @@ func NewFnVotePayload(fnRequest *FnExecutionRequest, fnResponse *FnExecutionResp
 }
 
 type FnVoteSet struct {
+	ID                       string         `json:"id"`
 	Nonce                    int64          `json:"nonce"`
 	ChainID                  string         `json:"chain_id"`
 	TotalAgreeVotingPower    int64          `json:"total_voting_power"`
@@ -421,7 +422,7 @@ type FnVoteSet struct {
 	ValidatorAddresses       [][]byte       `json:"validator_address"`
 }
 
-func NewVoteSet(nonce int64, chainID string, expiresIn time.Duration, validatorIndex int, executionContext []byte, initialPayload *FnVotePayload, privValidator types.PrivValidator, valSet *types.ValidatorSet) (*FnVoteSet, error) {
+func NewVoteSet(id string, nonce int64, chainID string, expiresIn time.Duration, validatorIndex int, executionContext []byte, initialPayload *FnVotePayload, privValidator types.PrivValidator, valSet *types.ValidatorSet) (*FnVoteSet, error) {
 	voteBitArray := cmn.NewBitArray(valSet.Size())
 	voteTypeBitArray := cmn.NewBitArray(valSet.Size())
 	signatures := make([][]byte, valSet.Size())
@@ -451,6 +452,7 @@ func NewVoteSet(nonce int64, chainID string, expiresIn time.Duration, validatorI
 	}
 
 	newVoteSet := &FnVoteSet{
+		ID:                       id,
 		Nonce:                    nonce,
 		ChainID:                  chainID,
 		TotalAgreeVotingPower:    totalAgreeVotingPower,
@@ -492,6 +494,14 @@ func (voteSet *FnVoteSet) CannonicalCompare(remoteVoteSet *FnVoteSet) bool {
 		return false
 	}
 
+	if voteSet.CreationTime != remoteVoteSet.CreationTime {
+		return false
+	}
+
+	if voteSet.ID != remoteVoteSet.ID {
+		return false
+	}
+
 	if remoteVoteSet.Payload == nil {
 		return false
 	}
@@ -530,7 +540,7 @@ func (voteSet *FnVoteSet) SignBytes(validatorIndex int, voteType VoteType) ([]by
 
 	var seperator = []byte{17, 19, 23, 29}
 
-	prefix := []byte(fmt.Sprintf("NONCE:%d|CT:%d|CD:%s|VA:%s|VT:%v|PL:", voteSet.Nonce, voteSet.CreationTime,
+	prefix := []byte(fmt.Sprintf("ID:%s|NONCE:%d|CT:%d|CD:%s|VA:%s|VT:%v|PL:", voteSet.ID, voteSet.Nonce, voteSet.CreationTime,
 		voteSet.ChainID, voteSet.ValidatorAddresses[validatorIndex], voteType))
 
 	signBytes := make([]byte, len(prefix)+len(seperator)+len(voteSet.ExecutionContext)+len(seperator)+len(payloadBytes))
@@ -700,6 +710,7 @@ func (voteSet *FnVoteSet) IsValid(chainID string, maxContextSize int, validityPe
 	}
 
 	if voteSet.TotalDisagreeVotingPower != calculatedDisagreeVotingPower {
+		isValid = false
 		return false
 	}
 

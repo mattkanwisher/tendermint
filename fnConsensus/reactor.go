@@ -2,6 +2,7 @@ package fnConsensus
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"sort"
 	"sync"
@@ -13,11 +14,14 @@ import (
 
 	dbm "github.com/tendermint/tendermint/libs/db"
 
+	"crypto/rand"
 	"crypto/sha512"
 )
 
 const FnVoteSetChannel = byte(0x50)
 const FnVoteSetMaj23Channel = byte(0x51)
+
+const VoteSetIDSize = 32
 
 const StartingNonce int64 = 1
 
@@ -132,6 +136,17 @@ func (f *FnConsensusReactor) RemovePeer(peer p2p.Peer, reason interface{}) {
 func (f *FnConsensusReactor) areWeValidator(currentValidatorSet *types.ValidatorSet) (bool, int) {
 	validatorIndex, _ := currentValidatorSet.GetByAddress(f.privValidator.GetPubKey().Address())
 	return validatorIndex != -1, validatorIndex
+}
+
+func (f *FnConsensusReactor) generateVoteSetID() (string, error) {
+	randomBytes := make([]byte, VoteSetIDSize)
+
+	_, err := rand.Read(randomBytes)
+	if err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(randomBytes), nil
 }
 
 func (f *FnConsensusReactor) calculateMessageHash(message []byte) ([]byte, error) {
@@ -276,7 +291,14 @@ func (f *FnConsensusReactor) propose(fnID string, fn Fn, currentState state.Stat
 		currentNonce = 1
 	}
 
-	voteSet, err := NewVoteSet(currentNonce, f.chainID, DefaultValidityPeriod, validatorIndex, ctx,
+	newVoteSetID, err := f.generateVoteSetID()
+	if err != nil {
+		f.Logger.Error("FnConsensusReactor: unable to generate new vote set id")
+		f.stateMtx.Unlock()
+		return
+	}
+
+	voteSet, err := NewVoteSet(newVoteSetID, currentNonce, f.chainID, DefaultValidityPeriod, validatorIndex, ctx,
 		votesetPayload, f.privValidator, currentState.Validators)
 	if err != nil {
 		f.Logger.Error("FnConsensusReactor: unable to create new voteset", "fnID", fnID, "error", err)
@@ -347,7 +369,11 @@ func (f *FnConsensusReactor) handleVoteSetChannelMessage(sender p2p.Peer, msgByt
 	}
 
 	if currentNonce != remoteVoteSet.Nonce {
-		f.Logger.Error("FnConsensusReactor: nonce in remote vote set is incorrect", currentNonce, remoteVoteSet.Nonce)
+		if currentNonce > remoteVoteSet.Nonce {
+			f.Logger.Info("FnConsensusReactor: Already seen this nonce, ignoring", "currentNonce", currentNonce, "remoteNonce", remoteVoteSet.Nonce)
+		} else {
+			f.Logger.Error("FnConsensusReactor: nonce in remote vote set is incorrect", "currentNonce", currentNonce, "remoteNonce", remoteVoteSet.Nonce)
+		}
 		return
 	}
 
