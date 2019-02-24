@@ -609,8 +609,51 @@ func (voteSet *FnVoteSet) IsMaj23Agree(currentValidatorSet *types.ValidatorSet) 
 	return voteSet.TotalAgreeVotingPower >= currentValidatorSet.TotalVotingPower()*2/3+1
 }
 
+func (voteSet *FnVoteSet) NumberOfVotes() int {
+	numberOfVotes := 0
+	for i := 0; i < voteSet.VoteBitArray.Size(); i++ {
+		if voteSet.VoteBitArray.GetIndex(i) {
+			numberOfVotes++
+		}
+	}
+	return numberOfVotes
+}
+
+func (voteSet *FnVoteSet) NumberOfAgreeVotes() int {
+	numberOfAgreeVotes := 0
+	for i := 0; i < voteSet.VoteTypeBitArray.Size(); i++ {
+		if VoteType(voteSet.VoteTypeBitArray.GetIndex(i)) == VoteTypeAgree {
+			numberOfAgreeVotes++
+		}
+	}
+	return numberOfAgreeVotes
+}
+
+func (voteSet *FnVoteSet) GetAgreeVoteIndexForValidatorIndex(validatorIndex int) (int, error) {
+	if validatorIndex < 0 || validatorIndex > voteSet.VoteTypeBitArray.Size()-1 {
+		return -1, fmt.Errorf("VoteSet: validator index passed is invalid")
+	}
+
+	if !voteSet.VoteTypeBitArray.GetIndex(validatorIndex) {
+		return -1, fmt.Errorf("VoteSet: validator did not casted agree vote")
+	}
+
+	counter := 0
+	for i := 0; i < validatorIndex; i++ {
+		if VoteType(voteSet.VoteTypeBitArray.GetIndex(i)) == VoteTypeAgree {
+			counter++
+		}
+	}
+
+	return counter, nil
+}
+
 func (voteSet *FnVoteSet) IsMaj23Disagree(currentValidatorSet *types.ValidatorSet) bool {
 	return voteSet.TotalDisagreeVotingPower >= currentValidatorSet.TotalVotingPower()*2/3+1
+}
+
+func (voteSet *FnVoteSet) IsMaj23(currentValidatorSet *types.ValidatorSet) bool {
+	return voteSet.IsMaj23Agree(currentValidatorSet) || voteSet.IsMaj23Disagree(currentValidatorSet)
 }
 
 func (voteSet *FnVoteSet) HaveWeAlreadySigned(ownValidatorIndex int) bool {
