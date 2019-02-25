@@ -208,7 +208,7 @@ OUTER_LOOP:
 						delete(f.state.CurrentVoteSets, fnID)
 						f.Logger.Info("FnConsensusReactor: archiving expired Fn execution", "FnID", fnID)
 					} else {
-						f.Logger.Error("FnConsensusReactor: unable to propose, previous execution is still pending", "FnID", fnID)
+						f.Logger.Info("FnConsensusReactor: unable to propose, previous execution is still pending", "FnID", fnID)
 						continue
 					}
 				}
