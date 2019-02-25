@@ -232,7 +232,7 @@ func (f *FnExecutionResponse) CannonicalCompare(remoteResponse *FnExecutionRespo
 		return false
 	}
 
-	if bytes.Compare(f.Hash, remoteResponse.Hash) != 0 {
+	if !bytes.Equal(f.Hash, remoteResponse.Hash) {
 		return false
 	}
 
@@ -248,7 +248,7 @@ func (f *FnExecutionResponse) CannonicalCompare(remoteResponse *FnExecutionRespo
 }
 
 func (f *FnExecutionResponse) CannonicalCompareWithIndividualExecution(individualExecution *FnIndividualExecutionResponse) bool {
-	if f.Status != individualExecution.Status || f.Error != individualExecution.Error || bytes.Compare(f.Hash, individualExecution.Hash) != 0 {
+	if f.Status != individualExecution.Status || f.Error != individualExecution.Error || !bytes.Equal(f.Hash, individualExecution.Hash) {
 		return false
 	}
 
@@ -275,7 +275,7 @@ func (f *FnExecutionResponse) Compare(remoteResponse *FnExecutionResponse) bool 
 		if f.SignatureBitArray.GetIndex(i) != remoteResponse.SignatureBitArray.GetIndex(i) {
 			return false
 		}
-		if bytes.Compare(f.OracleSignatures[i], remoteResponse.OracleSignatures[i]) != 0 {
+		if !bytes.Equal(f.OracleSignatures[i], remoteResponse.OracleSignatures[i]) {
 			return false
 		}
 	}
@@ -410,6 +410,7 @@ func NewFnVotePayload(fnRequest *FnExecutionRequest, fnResponse *FnExecutionResp
 type FnVoteSet struct {
 	ID                       string         `json:"id"`
 	Nonce                    int64          `json:"nonce"`
+	ValidatorsHash           []byte         `json:"validator_hash"`
 	ChainID                  string         `json:"chain_id"`
 	TotalAgreeVotingPower    int64          `json:"total_voting_power"`
 	TotalDisagreeVotingPower int64          `json:"total_disagree_voting_power"`
@@ -454,6 +455,7 @@ func NewVoteSet(id string, nonce int64, chainID string, expiresIn time.Duration,
 	newVoteSet := &FnVoteSet{
 		ID:                       id,
 		Nonce:                    nonce,
+		ValidatorsHash:           valSet.Hash(),
 		ChainID:                  chainID,
 		TotalAgreeVotingPower:    totalAgreeVotingPower,
 		TotalDisagreeVotingPower: 0,
@@ -502,6 +504,10 @@ func (voteSet *FnVoteSet) CannonicalCompare(remoteVoteSet *FnVoteSet) bool {
 		return false
 	}
 
+	if !bytes.Equal(voteSet.ValidatorsHash, remoteVoteSet.ValidatorsHash) {
+		return false
+	}
+
 	if remoteVoteSet.Payload == nil {
 		return false
 	}
@@ -519,12 +525,12 @@ func (voteSet *FnVoteSet) CannonicalCompare(remoteVoteSet *FnVoteSet) bool {
 		return false
 	}
 
-	if bytes.Compare(voteSet.ExecutionContext, remoteVoteSet.ExecutionContext) != 0 {
+	if !bytes.Equal(voteSet.ExecutionContext, remoteVoteSet.ExecutionContext) {
 		return false
 	}
 
 	for i := 0; i < len(voteSet.ValidatorAddresses); i++ {
-		if bytes.Compare(voteSet.ValidatorAddresses[i], remoteVoteSet.ValidatorAddresses[i]) != 0 {
+		if !bytes.Equal(voteSet.ValidatorAddresses[i], remoteVoteSet.ValidatorAddresses[i]) {
 			return false
 		}
 	}
@@ -543,7 +549,7 @@ func (voteSet *FnVoteSet) SignBytes(validatorIndex int, voteType VoteType) ([]by
 	prefix := []byte(fmt.Sprintf("ID:%s|NONCE:%d|CT:%d|CD:%s|VA:%s|VT:%v|PL:", voteSet.ID, voteSet.Nonce, voteSet.CreationTime,
 		voteSet.ChainID, voteSet.ValidatorAddresses[validatorIndex], voteType))
 
-	signBytes := make([]byte, len(prefix)+len(seperator)+len(voteSet.ExecutionContext)+len(seperator)+len(payloadBytes))
+	signBytes := make([]byte, len(prefix)+len(seperator)+len(voteSet.ExecutionContext)+len(seperator)+len(voteSet.ValidatorsHash)+len(seperator)+len(payloadBytes))
 
 	numCopied := 0
 
@@ -555,6 +561,12 @@ func (voteSet *FnVoteSet) SignBytes(validatorIndex int, voteType VoteType) ([]by
 
 	copy(signBytes[numCopied:], voteSet.ExecutionContext)
 	numCopied += len(voteSet.ExecutionContext)
+
+	copy(signBytes[numCopied:], seperator)
+	numCopied += len(seperator)
+
+	copy(signBytes[numCopied:], voteSet.ValidatorsHash)
+	numCopied += len(voteSet.ValidatorsHash)
 
 	copy(signBytes[numCopied:], seperator)
 	numCopied += len(seperator)
@@ -696,6 +708,11 @@ func (voteSet *FnVoteSet) IsValid(chainID string, maxContextSize int, validityPe
 		return isValid
 	}
 
+	if !bytes.Equal(voteSet.ValidatorsHash, currentValidatorSet.Hash()) {
+		isValid = false
+		return isValid
+	}
+
 	if numValidators != len(voteSet.ValidatorAddresses) || numValidators != len(voteSet.ValidatorSignatures) || numValidators != currentValidatorSet.Size() {
 		isValid = false
 		return isValid
@@ -712,7 +729,7 @@ func (voteSet *FnVoteSet) IsValid(chainID string, maxContextSize int, validityPe
 	}
 
 	currentValidatorSet.Iterate(func(i int, val *types.Validator) bool {
-		if bytes.Compare(voteSet.ValidatorAddresses[i], val.Address) != 0 {
+		if !bytes.Equal(voteSet.ValidatorAddresses[i], val.Address) {
 			isValid = false
 			return true
 		}
@@ -841,7 +858,7 @@ func (voteSet *FnVoteSet) AddVote(nonce int64, individualExecutionResponse *FnIn
 		return fmt.Errorf("fnConsensusReactor: unable to add vote as validatorIndex is not valid")
 	}
 
-	if bytes.Compare(validator.Address, voteSet.ValidatorAddresses[validatorIndex]) != 0 {
+	if !bytes.Equal(validator.Address, voteSet.ValidatorAddresses[validatorIndex]) {
 		return fmt.Errorf("fnConsensusReactor: unable to add vote as validatorAddress does not match with one in the vote set")
 	}
 
