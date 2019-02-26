@@ -830,8 +830,10 @@ func (voteSet *FnVoteSet) AddVote(nonce int64, individualExecutionResponse *FnIn
 		return ErrFnVoteAlreadyCasted
 	}
 
-	if !voteSet.Payload.Response.CannonicalCompareWithIndividualExecution(individualExecutionResponse) {
-		return fmt.Errorf("fnConsensusReactor: unable to add vote as execution responses are different")
+	if voteType != VoteTypeDisAgree {
+		if !voteSet.Payload.Response.CannonicalCompareWithIndividualExecution(individualExecutionResponse) {
+			return fmt.Errorf("fnConsensusReactor: unable to add vote as execution responses are different")
+		}
 	}
 
 	if err := voteSet.Payload.Response.AddSignature(validatorIndex, individualExecutionResponse.OracleSignature); err != nil {

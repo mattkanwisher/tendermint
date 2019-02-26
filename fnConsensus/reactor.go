@@ -597,7 +597,7 @@ func (f *FnConsensusReactor) handleVoteSetChannelMessage(sender p2p.Peer, msgByt
 				OracleSignature: nil,
 			}, currentState.Validators, ownValidatorIndex, VoteTypeDisAgree, f.privValidator)
 			if err != nil {
-				f.Logger.Error("FnConsensusError: unable to add disagree vote to current voteset, ignoring...")
+				f.Logger.Error("FnConsensusError: unable to add disagree vote to current voteset, ignoring...", "error", err)
 				return
 			}
 		}
