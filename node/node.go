@@ -22,7 +22,6 @@ import (
 	cs "github.com/tendermint/tendermint/consensus"
 	"github.com/tendermint/tendermint/crypto/ed25519"
 	"github.com/tendermint/tendermint/evidence"
-	"github.com/tendermint/tendermint/fnConsensus"
 	cmn "github.com/tendermint/tendermint/libs/common"
 	dbm "github.com/tendermint/tendermint/libs/db"
 	"github.com/tendermint/tendermint/libs/log"
@@ -151,6 +150,9 @@ type Node struct {
 	prometheusSrv    *http.Server
 }
 
+// FnConsensus reactor Factory function signature
+type FnConsensusReactorFactory func(fnConsensusDb dbm.DB, stateDb dbm.DB, logger log.Logger) p2p.Reactor
+
 // NewNode returns a new, ready to go, Tendermint Node.
 func NewNode(config *cfg.Config,
 	privValidator types.PrivValidator,
@@ -161,7 +163,7 @@ func NewNode(config *cfg.Config,
 	metricsProvider MetricsProvider,
 	logger log.Logger,
 	enableFnConsensus bool,
-	fnRegistry fnConsensus.FnRegistry) (*Node, error) {
+	fnConsensusFactory FnConsensusReactorFactory) (*Node, error) {
 
 	// Get BlockStore
 	blockStoreDB, err := dbProvider(&DBContext{"blockstore", config})
@@ -358,6 +360,13 @@ func NewNode(config *cfg.Config,
 	indexerService := txindex.NewIndexerService(txIndexer, eventBus)
 	indexerService.SetLogger(logger.With("module", "txindex"))
 
+	var fnConsensusReactor p2p.Reactor
+	var additionalChannels []*p2p.ChannelDescriptor
+	if enableFnConsensus {
+		fnConsensusReactor = fnConsensusFactory(fnConsensusDB, stateDB, logger.With("module", "fnConsensus"))
+		additionalChannels = fnConsensusReactor.GetChannels()
+	}
+
 	p2pLogger := logger.With("module", "p2p")
 	nodeInfo, err := makeNodeInfo(
 		config,
@@ -369,6 +378,7 @@ func NewNode(config *cfg.Config,
 			state.Version.Consensus.Block,
 			state.Version.Consensus.App,
 		),
+		additionalChannels,
 	)
 	if err != nil {
 		return nil, err
@@ -442,9 +452,7 @@ func NewNode(config *cfg.Config,
 	sw.AddReactor("CONSENSUS", consensusReactor)
 	sw.AddReactor("EVIDENCE", evidenceReactor)
 
-	if enableFnConsensus {
-		fnConsensusReactor := fnConsensus.NewFnConsensusReactor(config.ChainID(), privValidator, fnRegistry, fnConsensusDB, stateDB)
-		fnConsensusReactor.SetLogger(logger.With("module", "FnConsensus"))
+	if fnConsensusReactor != nil {
 		sw.AddReactor("FNCONSENSUS", fnConsensusReactor)
 	}
 
@@ -801,6 +809,7 @@ func makeNodeInfo(
 	txIndexer txindex.TxIndexer,
 	chainID string,
 	protocolVersion p2p.ProtocolVersion,
+	additionalChannels []*p2p.ChannelDescriptor,
 ) (p2p.NodeInfo, error) {
 	txIndexerStatus := "on"
 	if _, ok := txIndexer.(*null.TxIndex); ok {
@@ -816,7 +825,6 @@ func makeNodeInfo(
 			cs.StateChannel, cs.DataChannel, cs.VoteChannel, cs.VoteSetBitsChannel,
 			mempl.MempoolChannel,
 			evidence.EvidenceChannel,
-			fnConsensus.FnVoteSetChannel,
 		},
 		Moniker: config.Moniker,
 		Other: p2p.DefaultNodeInfoOther{
@@ -827,6 +835,10 @@ func makeNodeInfo(
 
 	if config.P2P.PexReactor {
 		nodeInfo.Channels = append(nodeInfo.Channels, pex.PexChannel)
+	}
+
+	for _, additionalChannel := range additionalChannels {
+		nodeInfo.Channels = append(nodeInfo.Channels, additionalChannel.ID)
 	}
 
 	lAddr := config.P2P.ExternalAddress
