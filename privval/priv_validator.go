@@ -172,6 +172,13 @@ func (pv *FilePV) SignProposal(chainID string, proposal *types.Proposal) error {
 	return nil
 }
 
+func (pv *FilePV) Sign(msg []byte) ([]byte, error) {
+	pv.mtx.Lock()
+	defer pv.mtx.Unlock()
+
+	return pv.PrivKey.Sign(msg)
+}
+
 // returns error if HRS regression or no LastSignBytes. returns true if HRS is unchanged
 func (pv *FilePV) checkHRS(height int64, round int, step int8) (bool, error) {
 	if pv.LastHeight > height {

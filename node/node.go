@@ -94,6 +94,7 @@ func DefaultNewNode(config *cfg.Config, logger log.Logger) (*Node, error) {
 		DefaultDBProvider,
 		DefaultMetricsProvider(config.Instrumentation),
 		logger,
+		nil,
 	)
 }
 
@@ -110,6 +111,11 @@ func DefaultMetricsProvider(config *cfg.InstrumentationConfig) MetricsProvider {
 		}
 		return cs.NopMetrics(), p2p.NopMetrics(), mempl.NopMetrics(), sm.NopMetrics()
 	}
+}
+
+type ReactorRegistrationRequest struct {
+	Name    string
+	Reactor p2p.Reactor
 }
 
 //------------------------------------------------------------------------------
@@ -156,7 +162,8 @@ func NewNode(config *cfg.Config,
 	genesisDocProvider GenesisDocProvider,
 	dbProvider DBProvider,
 	metricsProvider MetricsProvider,
-	logger log.Logger) (*Node, error) {
+	logger log.Logger,
+	reactorRegistrationRequests []*ReactorRegistrationRequest) (*Node, error) {
 
 	// Get BlockStore
 	blockStoreDB, err := dbProvider(&DBContext{"blockstore", config})
@@ -348,6 +355,11 @@ func NewNode(config *cfg.Config,
 	indexerService := txindex.NewIndexerService(txIndexer, eventBus)
 	indexerService.SetLogger(logger.With("module", "txindex"))
 
+	var additionalChannels = make([]*p2p.ChannelDescriptor, 0)
+	for _, reactorRegistrationRequest := range reactorRegistrationRequests {
+		additionalChannels = append(additionalChannels, reactorRegistrationRequest.Reactor.GetChannels()...)
+	}
+
 	p2pLogger := logger.With("module", "p2p")
 	nodeInfo, err := makeNodeInfo(
 		config,
@@ -359,6 +371,7 @@ func NewNode(config *cfg.Config,
 			state.Version.Consensus.Block,
 			state.Version.Consensus.App,
 		),
+		additionalChannels,
 	)
 	if err != nil {
 		return nil, err
@@ -426,10 +439,16 @@ func NewNode(config *cfg.Config,
 		p2p.SwitchPeerFilters(peerFilters...),
 	)
 	sw.SetLogger(p2pLogger)
+
 	sw.AddReactor("MEMPOOL", mempoolReactor)
 	sw.AddReactor("BLOCKCHAIN", bcReactor)
 	sw.AddReactor("CONSENSUS", consensusReactor)
 	sw.AddReactor("EVIDENCE", evidenceReactor)
+
+	for _, reactorRegistrationRequest := range reactorRegistrationRequests {
+		sw.AddReactor(reactorRegistrationRequest.Name, reactorRegistrationRequest.Reactor)
+	}
+
 	sw.SetNodeInfo(nodeInfo)
 	sw.SetNodeKey(nodeKey)
 
@@ -783,6 +802,7 @@ func makeNodeInfo(
 	txIndexer txindex.TxIndexer,
 	chainID string,
 	protocolVersion p2p.ProtocolVersion,
+	additionalChannels []*p2p.ChannelDescriptor,
 ) (p2p.NodeInfo, error) {
 	txIndexerStatus := "on"
 	if _, ok := txIndexer.(*null.TxIndex); ok {
@@ -808,6 +828,10 @@ func makeNodeInfo(
 
 	if config.P2P.PexReactor {
 		nodeInfo.Channels = append(nodeInfo.Channels, pex.PexChannel)
+	}
+
+	for _, additionalChannel := range additionalChannels {
+		nodeInfo.Channels = append(nodeInfo.Channels, additionalChannel.ID)
 	}
 
 	lAddr := config.P2P.ExternalAddress

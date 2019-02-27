@@ -317,6 +317,7 @@ func (mem *Mempool) CheckTx(tx types.Tx, cb func(*abci.Response)) (err error) {
 
 	// CACHE
 	if !mem.cache.Push(tx) {
+		mem.metrics.ErrTxInCache.Add(1)
 		return ErrTxInCache
 	}
 	// END CACHE
@@ -676,7 +677,7 @@ func (cache *mapTxCache) Push(tx types.Tx) bool {
 	// Use the tx hash in the cache
 	txHash := sha256.Sum256(tx)
 	if moved, exists := cache.map_[txHash]; exists {
-		cache.list.MoveToFront(moved)
+		cache.list.MoveToBack(moved)
 		return false
 	}
 

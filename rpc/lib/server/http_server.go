@@ -37,7 +37,8 @@ const (
 	// be less than the WriteTimeout here.
 	// TODO: use a config instead.
 	ReadTimeout  = 3 * time.Second
-	WriteTimeout = 20 * time.Second
+	WriteTimeout = 180 * time.Second
+	//WriteTimeout = 20 * time.Second
 )
 
 // StartHTTPServer takes a listener and starts an HTTP server with the given handler.

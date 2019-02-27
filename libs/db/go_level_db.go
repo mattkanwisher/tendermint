@@ -192,13 +192,13 @@ func (mBatch *goLevelDBBatch) WriteSync() {
 // Implements DB.
 func (db *GoLevelDB) Iterator(start, end []byte) Iterator {
 	itr := db.db.NewIterator(nil, nil)
-	return newGoLevelDBIterator(itr, start, end, false)
+	return NewGoLevelDBIterator(itr, start, end, false)
 }
 
 // Implements DB.
 func (db *GoLevelDB) ReverseIterator(start, end []byte) Iterator {
 	itr := db.db.NewIterator(nil, nil)
-	return newGoLevelDBIterator(itr, start, end, true)
+	return NewGoLevelDBIterator(itr, start, end, true)
 }
 
 type goLevelDBIterator struct {
@@ -211,7 +211,7 @@ type goLevelDBIterator struct {
 
 var _ Iterator = (*goLevelDBIterator)(nil)
 
-func newGoLevelDBIterator(source iterator.Iterator, start, end []byte, isReverse bool) *goLevelDBIterator {
+func NewGoLevelDBIterator(source iterator.Iterator, start, end []byte, isReverse bool) *goLevelDBIterator {
 	if isReverse {
 		if end == nil {
 			source.Last()

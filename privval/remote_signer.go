@@ -125,6 +125,27 @@ func (sc *RemoteSignerClient) SignProposal(
 	return nil
 }
 
+func (sc *RemoteSignerClient) Sign(msg []byte) ([]byte, error) {
+	sc.lock.Lock()
+	defer sc.lock.Unlock()
+
+	const maxRemoteSignerMsgSize = 1024 * 10
+
+	_, err := sc.conn.Write(msg)
+	if _, ok := err.(timeoutError); ok {
+		return nil, cmn.ErrorWrap(ErrConnTimeout, err.Error())
+	}
+
+	signatureBytes := make([]byte, maxRemoteSignerMsgSize)
+	signatureSize, err := sc.conn.Read(signatureBytes)
+	if _, ok := err.(timeoutError); ok {
+		return nil, cmn.ErrorWrap(ErrConnTimeout, err.Error())
+	}
+	signatureBytes = signatureBytes[:signatureSize]
+
+	return signatureBytes, nil
+}
+
 // Ping is used to check connection health.
 func (sc *RemoteSignerClient) Ping() error {
 	sc.lock.Lock()
