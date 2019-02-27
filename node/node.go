@@ -154,9 +154,6 @@ type Node struct {
 	prometheusSrv    *http.Server
 }
 
-// FnConsensus reactor Factory function signature
-type FnConsensusReactorFactory func(fnConsensusDb dbm.DB, stateDb dbm.DB, logger log.Logger) p2p.Reactor
-
 // NewNode returns a new, ready to go, Tendermint Node.
 func NewNode(config *cfg.Config,
 	privValidator types.PrivValidator,
