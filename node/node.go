@@ -94,7 +94,6 @@ func DefaultNewNode(config *cfg.Config, logger log.Logger) (*Node, error) {
 		DefaultDBProvider,
 		DefaultMetricsProvider(config.Instrumentation),
 		logger,
-		false,
 		nil,
 	)
 }
@@ -112,6 +111,11 @@ func DefaultMetricsProvider(config *cfg.InstrumentationConfig) MetricsProvider {
 		}
 		return cs.NopMetrics(), p2p.NopMetrics(), mempl.NopMetrics(), sm.NopMetrics()
 	}
+}
+
+type ReactorRegistrationRequest struct {
+	Name    string
+	Reactor p2p.Reactor
 }
 
 //------------------------------------------------------------------------------
@@ -162,8 +166,7 @@ func NewNode(config *cfg.Config,
 	dbProvider DBProvider,
 	metricsProvider MetricsProvider,
 	logger log.Logger,
-	enableFnConsensus bool,
-	fnConsensusFactory FnConsensusReactorFactory) (*Node, error) {
+	reactorRegistrationRequests []*ReactorRegistrationRequest) (*Node, error) {
 
 	// Get BlockStore
 	blockStoreDB, err := dbProvider(&DBContext{"blockstore", config})
@@ -174,11 +177,6 @@ func NewNode(config *cfg.Config,
 
 	// Get State
 	stateDB, err := dbProvider(&DBContext{"state", config})
-	if err != nil {
-		return nil, err
-	}
-
-	fnConsensusDB, err := dbProvider(&DBContext{"fnConsensus", config})
 	if err != nil {
 		return nil, err
 	}
@@ -360,11 +358,9 @@ func NewNode(config *cfg.Config,
 	indexerService := txindex.NewIndexerService(txIndexer, eventBus)
 	indexerService.SetLogger(logger.With("module", "txindex"))
 
-	var fnConsensusReactor p2p.Reactor
-	var additionalChannels []*p2p.ChannelDescriptor
-	if enableFnConsensus {
-		fnConsensusReactor = fnConsensusFactory(fnConsensusDB, stateDB, logger.With("module", "fnConsensus"))
-		additionalChannels = fnConsensusReactor.GetChannels()
+	var additionalChannels = make([]*p2p.ChannelDescriptor, 0)
+	for _, reactorRegistrationRequest := range reactorRegistrationRequests {
+		additionalChannels = append(additionalChannels, reactorRegistrationRequest.Reactor.GetChannels()...)
 	}
 
 	p2pLogger := logger.With("module", "p2p")
@@ -452,8 +448,8 @@ func NewNode(config *cfg.Config,
 	sw.AddReactor("CONSENSUS", consensusReactor)
 	sw.AddReactor("EVIDENCE", evidenceReactor)
 
-	if fnConsensusReactor != nil {
-		sw.AddReactor("FNCONSENSUS", fnConsensusReactor)
+	for _, reactorRegistrationRequest := range reactorRegistrationRequests {
+		sw.AddReactor(reactorRegistrationRequest.Name, reactorRegistrationRequest.Reactor)
 	}
 
 	sw.SetNodeInfo(nodeInfo)
