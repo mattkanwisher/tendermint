@@ -236,6 +236,9 @@ size = {{ .Mempool.Size }}
 # size of the cache (used to filter transactions we saw earlier)
 cache_size = {{ .Mempool.CacheSize }}
 
+# max number of blocks a tx can remain in the mempool for, zero means forever
+tx_life_window = {{ .Mempool.TxLifeWindow }}
+
 ##### consensus configuration options #####
 [consensus]
 

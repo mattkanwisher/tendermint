@@ -506,12 +506,13 @@ func DefaultFuzzConnConfig() *FuzzConnConfig {
 
 // MempoolConfig defines the configuration options for the Tendermint mempool
 type MempoolConfig struct {
-	RootDir   string `mapstructure:"home"`
-	Recheck   bool   `mapstructure:"recheck"`
-	Broadcast bool   `mapstructure:"broadcast"`
-	WalPath   string `mapstructure:"wal_dir"`
-	Size      int    `mapstructure:"size"`
-	CacheSize int    `mapstructure:"cache_size"`
+	RootDir      string `mapstructure:"home"`
+	Recheck      bool   `mapstructure:"recheck"`
+	Broadcast    bool   `mapstructure:"broadcast"`
+	WalPath      string `mapstructure:"wal_dir"`
+	Size         int    `mapstructure:"size"`
+	CacheSize    int    `mapstructure:"cache_size"`
+	TxLifeWindow int    `mapstructure:"tx_life_window"`
 }
 
 // DefaultMempoolConfig returns a default configuration for the Tendermint mempool
@@ -524,6 +525,8 @@ func DefaultMempoolConfig() *MempoolConfig {
 		// ABCI Recheck
 		Size:      5000,
 		CacheSize: 10000,
+		// Max number of blocks a tx can remain in the mempool for, zero means forever
+		TxLifeWindow: 0,
 	}
 }
 

@@ -326,6 +326,47 @@ func TestSerialReap(t *testing.T) {
 	reapCheck(600)
 }
 
+func TestTxEviction(t *testing.T) {
+	app := kvstore.NewKVStoreApplication()
+	cc := proxy.NewLocalClientCreator(app)
+
+	config := cfg.ResetTestRoot("mempool_test")
+	config.Mempool.TxLifeWindow = 5 // tx should be evicted after 5 blocks are committed
+
+	appConnMem, _ := cc.NewABCIClient()
+	appConnMem.SetLogger(log.TestingLogger().With("module", "abci-client", "connection", "mempool"))
+	err := appConnMem.Start()
+	if err != nil {
+		panic(err)
+	}
+	mempool := NewMempool(config.Mempool, appConnMem, 1)
+	mempool.SetLogger(log.TestingLogger())
+
+	txBytes := make([]byte, 20)
+	_, err = rand.Read(txBytes)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// add tx to mempool at height 1
+	if err := mempool.CheckTx(txBytes, nil); err != nil {
+		t.Fatalf("CheckTx failed: %v while checking tx", err)
+	}
+
+	// commit 5 blocks
+	for h := 2; h < 7; h++ {
+		require.NoError(t, mempool.Update(int64(h), nil, nil, nil))
+		require.Equal(t, 1, mempool.Size())
+	}
+
+	// tx should be evicted from the mempool on this block commit
+	require.NoError(t, mempool.Update(7, nil, nil, nil))
+	require.Equal(t, 0, mempool.Size())
+
+	// tx should remain in the mempool cache
+	require.Error(t, ErrTxInCache, mempool.CheckTx(txBytes, nil))
+}
+
 func TestCacheRemove(t *testing.T) {
 	cache := newMapTxCache(100)
 	numTxs := 10
