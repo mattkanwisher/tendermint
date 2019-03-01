@@ -582,7 +582,7 @@ func (mem *Mempool) Update(
 	}
 
 	// Remove committed transactions.
-	txsLeft := mem.removeTxs(txs)
+	txsLeft := mem.removeTxs(txs, int64(mem.config.TxLifeWindow))
 
 	// Either recheck non-committed txs to see if they became invalid
 	// or just notify there're some txs left.
@@ -604,7 +604,7 @@ func (mem *Mempool) Update(
 	return nil
 }
 
-func (mem *Mempool) removeTxs(txs types.Txs) []types.Tx {
+func (mem *Mempool) removeTxs(txs types.Txs, txLifeWindow int64) []types.Tx {
 	// Build a map for faster lookups.
 	txsMap := make(map[string]struct{}, len(txs))
 	for _, tx := range txs {
@@ -622,6 +622,18 @@ func (mem *Mempool) removeTxs(txs types.Txs) []types.Tx {
 
 			// NOTE: we don't remove committed txs from the cache.
 			continue
+		}
+		// Remove the tx if it has been sitting in the mempool for too long
+		if txLifeWindow > 0 {
+			h := memTx.Height()
+			if (h + txLifeWindow) < mem.height {
+				mem.logger.Info("Evicting tx", "id", TxID(memTx.tx), "height", h)
+				mem.txs.Remove(e)
+				e.DetachPrev()
+
+				// NOTE: we don't remove evicted txs from the cache.
+				continue
+			}
 		}
 		txsLeft = append(txsLeft, memTx.tx)
 	}
