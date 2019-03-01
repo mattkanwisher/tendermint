@@ -278,6 +278,53 @@ func UnconfirmedTxs(limit int) (*ctypes.ResultUnconfirmedTxs, error) {
 	return &ctypes.ResultUnconfirmedTxs{len(txs), txs}, nil
 }
 
+// MempoolTxs returns the txs currently in the mempool (with additional metadata), and the total
+// number of txs currently in the mempool.
+//
+// ```shell
+// curl 'localhost:26657/mempool_txs'
+// ```
+//
+// ```go
+// client := client.NewHTTP("tcp://0.0.0.0:26657", "/websocket")
+// err := client.Start()
+// if err != nil {
+//   // handle error
+// }
+// defer client.Stop()
+// result, err := client.MempoolTxs()
+// ```
+//
+// > The above command returns JSON structured like this:
+//
+// ```json
+// {
+//   "error": "",
+//   "result": {
+//     "txs": [],
+//     "n_txs": "100"
+//   },
+//   "id": "",
+//   "jsonrpc": "2.0"
+// }
+//
+// ### Query Parameters
+//
+// | Parameter | Type | Default | Required | Description                                 |
+// |-----------+------+---------+----------+---------------------------------------------|
+// | limit     | int  | 30      | false    | Maximum number of txs to fetch (-1 for all) |
+// ```
+func MempoolTxs(limit int) (*ctypes.ResultMempoolTxs, error) {
+	if limit < 1 {
+		limit = -1 // will reap all txs in the mempool
+	}
+	txs := mempool.GetTxsWithExtInfo(limit)
+	return &ctypes.ResultMempoolTxs{
+		N:   mempool.Size(),
+		Txs: txs,
+	}, nil
+}
+
 // Get number of unconfirmed transactions.
 //
 // ```shell
