@@ -529,6 +529,33 @@ func (mem *Mempool) ReapMaxTxs(max int) types.Txs {
 	return txs
 }
 
+// ReapMaxTxsWithExtInfo reaps up to max transactions (with additional metadata) from the mempool.
+// If max is negative, there is no cap on the size of all returned
+// transactions (~ all available transactions).
+func (mem *Mempool) ReapMaxTxsWithExtInfo(max int) []MempoolTxInfo {
+	mem.proxyMtx.Lock()
+	defer mem.proxyMtx.Unlock()
+
+	if max < 0 {
+		max = mem.txs.Len()
+	}
+
+	for atomic.LoadInt32(&mem.rechecking) > 0 {
+		// TODO: Something better?
+		time.Sleep(time.Millisecond * 10)
+	}
+
+	txs := make([]MempoolTxInfo, 0, cmn.MinInt(mem.txs.Len(), max))
+	for e := mem.txs.Front(); e != nil && len(txs) <= max; e = e.Next() {
+		memTx := e.Value.(*mempoolTx)
+		txs = append(txs, MempoolTxInfo{
+			Tx:     memTx.tx,
+			Height: memTx.Height(),
+		})
+	}
+	return txs
+}
+
 // Update informs the mempool that the given txs were committed and can be discarded.
 // NOTE: this should be called *after* block is committed by consensus.
 // NOTE: unsafe; Lock/Unlock must be managed by caller

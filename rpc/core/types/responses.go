@@ -7,6 +7,7 @@ import (
 	abci "github.com/tendermint/tendermint/abci/types"
 	"github.com/tendermint/tendermint/crypto"
 	cmn "github.com/tendermint/tendermint/libs/common"
+	"github.com/tendermint/tendermint/mempool"
 
 	"github.com/tendermint/tendermint/p2p"
 	"github.com/tendermint/tendermint/state"
@@ -179,6 +180,12 @@ type ResultTxSearch struct {
 type ResultUnconfirmedTxs struct {
 	N   int        `json:"n_txs"`
 	Txs []types.Tx `json:"txs"`
+}
+
+// ResultMempoolTxs contains a list of mempool txs with additional metadata
+type ResultMempoolTxs struct {
+	N   int                     `json:"n_txs"` // total number of txs in the mempool
+	Txs []mempool.MempoolTxInfo `json:"txs"`
 }
 
 // Info abci msg
