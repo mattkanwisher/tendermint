@@ -318,7 +318,7 @@ func MempoolTxs(limit int) (*ctypes.ResultMempoolTxs, error) {
 	if limit < 1 {
 		limit = -1 // will reap all txs in the mempool
 	}
-	txs := mempool.ReapMaxTxsWithExtInfo(limit)
+	txs := mempool.GetTxsWithExtInfo(limit)
 	return &ctypes.ResultMempoolTxs{
 		N:   mempool.Size(),
 		Txs: txs,

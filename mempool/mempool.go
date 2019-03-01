@@ -529,10 +529,10 @@ func (mem *Mempool) ReapMaxTxs(max int) types.Txs {
 	return txs
 }
 
-// ReapMaxTxsWithExtInfo reaps up to max transactions (with additional metadata) from the mempool.
+// GetTxsWithExtInfo returns up to max transactions (with additional metadata) from the mempool.
 // If max is negative, there is no cap on the size of all returned
 // transactions (~ all available transactions).
-func (mem *Mempool) ReapMaxTxsWithExtInfo(max int) []MempoolTxInfo {
+func (mem *Mempool) GetTxsWithExtInfo(max int) []MempoolTxInfo {
 	mem.proxyMtx.Lock()
 	defer mem.proxyMtx.Unlock()
 
